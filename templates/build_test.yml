@@ -22,4 +22,4 @@ jobs:
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
       - name: Upload provenance (SLSA)
-        uses: slsa-framework/slsa-github-generator@v1.10.0
+        uses: slsa-framework/slsa-github-generator@v2.1.0
