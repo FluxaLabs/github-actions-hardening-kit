@@ -1,0 +1,25 @@
+name: Build & Test (Hardened)
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    permissions:
+      id-token: write     # 🔐 for OIDC
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      # --- Security additions ---
+      - name: Generate SBOM
+        uses: CycloneDX/gh-node-module-bom@v2
+      - name: Upload provenance (SLSA)
+        uses: slsa-framework/slsa-github-generator@v2
