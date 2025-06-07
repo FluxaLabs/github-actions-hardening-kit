@@ -1,0 +1,68 @@
+name: Docker Publish (Hardened)
+
+on:
+  push:
+    tags: ['v*.*.*']          # run only on version tags
+  workflow_dispatch:          # manual trigger
+
+permissions:
+  contents: read
+  id-token: write             # OIDC for registry login
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build image
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Login to GHCR via OIDC
+        uses: actions/docker-login@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          platforms: linux/amd64,linux/arm64
+
+      # Security scan with Trivy
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.14.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          format: 'table'
+          exit-code: '1'   # fail build on CRITICAL/HIGH
+          vuln-type: 'os,library'
+
+      # SBOM + provenance
+      - name: Generate CycloneDX SBOM
+        uses: CycloneDX/gh-docker-sbom@v1.0.0
+        with:
+          image: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+
+      - name: Upload provenance (SLSA)
+        uses: slsa-framework/slsa-github-generator@v2
+        with:
+          artifact-path: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+
